@@ -23,6 +23,27 @@ uint64_t swap_uint64(uint64_t val) {
     return (val << 32) | (val >> 32);
 }
 
+typedef struct {
+    const char* code;
+    const char* name;
+} ItsoOperator;
+
+static const ItsoOperator itso_operators[] = {
+    {"0125", "TfGM"},
+    {"0154", "Nexus"},
+    {"0305", "Northern"},
+    // Incomplete list
+};
+
+static const char* itso_get_operator_name(const char* code) {
+    for(size_t i = 0; i < sizeof(itso_operators)/sizeof(ItsoOperator); ++i) {
+        if(strcmp(code, itso_operators[i].code) == 0) {
+            return itso_operators[i].name;
+        }
+    }
+    return "Unknown";
+}
+
 static bool itso_parse(const NfcDevice* device, FuriString* parsed_data) {
     furi_assert(device);
     furi_assert(parsed_data);
@@ -69,6 +90,13 @@ static bool itso_parse(const NfcDevice* device, FuriString* parsed_data) {
         // All itso card numbers are prefixed with "633597"
         if(strncmp(cardp, "633597", 6) != 0) break;
 
+        // Extract operator code (4 bytes after prefix)
+        char operator_code[5] = {0};
+        memcpy(operator_code, cardp + 6, 4);
+        operator_code[4] = '\0';
+
+        const char* operator_name = itso_get_operator_name(operator_code);
+
         char* datep = dateBuff + 12;
         dateBuff[17] = '\0';
 
@@ -90,6 +118,9 @@ static bool itso_parse(const NfcDevice* device, FuriString* parsed_data) {
             }
             furi_string_push_back(parsed_data, ' ');
         }
+
+        // Add operator code and name to output
+        furi_string_cat_printf(parsed_data, "\nOperator: %s (%s)", operator_code, operator_name);
 
         DateTime timestamp = {0};
         datetime_timestamp_to_datetime(unixTimestamp, &timestamp);
